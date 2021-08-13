@@ -10,7 +10,7 @@ const AmountBox = ({ amount, description }: AmountBoxProps): JSX.Element => {
     <>
       <div className="amount">
         <span>
-          {" "}
+          $
           {`${Math.floor(amount)}.${"00"
             .concat(String(amount * 100 - Math.floor(amount) * 100))
             .slice(-2)}`}

@@ -353,7 +353,7 @@ function App(): JSX.Element {
           const { transaction: tonTransaction } = await ton.rawApi.sendMessage({
             sender: selectedAddress,
             recipient: addresses[Math.floor(Math.random() * addresses.length)],
-            amount: String(amountInChooseCurrency * 1000000000),
+            amount: String(Math.round(amountInChooseCurrency * 1000000000)),
             bounce: true,
           });
 
@@ -409,7 +409,7 @@ function App(): JSX.Element {
                 params: {
                   to: walletAddress2,
                   tokens: String(
-                    Math.floor(amountInChooseCurrency * 10 ** +decimals)
+                    Math.round(amountInChooseCurrency * 10 ** +decimals)
                   ), // ?
                   grams: "1000000000",
                   send_gas_to: selectedAddress,
