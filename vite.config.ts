@@ -4,5 +4,5 @@ import reactRefresh from "@vitejs/plugin-react-refresh";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [reactRefresh()],
-  root: "https://wintexpro.github.io/ton-accept/",
+  base: "https://wintexpro.github.io/ton-accept/",
 });
