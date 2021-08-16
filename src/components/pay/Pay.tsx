@@ -72,14 +72,7 @@ const Pay = ({
                 </div>
               </div>
               <div className="number with-tooltip">
-                <span>{`${Math.floor(item.amount)}.${(() => {
-                  const str = String(
-                    item.amount * 100 - Math.floor(item.amount) * 100
-                  ).split(".")[0];
-
-                  return str ? "00".concat(str).slice(-2) : "00";
-                })()}
-                  `}</span>
+                <span>{item.amount}</span>
                 <div className="hidden-text">{`${item.amount}`}</div>
               </div>
             </div>

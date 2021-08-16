@@ -6,6 +6,7 @@ import { getTokensInfo } from "./api/tokens-info";
 import { getCurrenciesDataInfo } from "./api/ton-swap";
 import Connect from "./components/connect/Connect";
 import Failed from "./components/failed/Failed";
+import Mobile from "./components/mobile/Mobile";
 import Pay from "./components/pay/Pay";
 import Scene from "./components/scene/Scene";
 import Success from "./components/success/Success";
@@ -122,22 +123,52 @@ function App(): JSX.Element {
     currencyAddress: string;
   } | null>(null);
 
-  window.addEventListener("message", (e) => {
-    switch (e.data.command) {
-      case "setRequestPayment":
-        setRequestPayment(e.data.request);
-        setConfig(e.data.config);
-        setAddresses(e.data.addresses);
-        break;
-      case "setRequestMultiCurPayment":
-        setRequestMultiCurPayment(e.data.request);
-        setConfig(e.data.config);
-        setAddresses(e.data.addresses);
-        break;
-      default:
-        break;
-    }
-  });
+  const onSucsess = () => {
+    window.parent.postMessage(
+      {
+        command: "success",
+        hash,
+      },
+      "*"
+    );
+  };
+
+  const onFailure = () => {
+    window.parent.postMessage(
+      {
+        command: "failure",
+        hash,
+      },
+      "*"
+    );
+  };
+
+  const validUntilUtcTimer = (validUntilUtc: number) => {
+    setTimeout(() => onFailure(), validUntilUtc - Date.now());
+  };
+
+  useEffect(() => {
+    window.addEventListener("message", (e) => {
+      switch (e.data.command) {
+        case "setRequestPayment":
+          if (e.data.request.validUntilUtc)
+            validUntilUtcTimer(e.data.request.validUntilUtc);
+          setRequestPayment(e.data.request);
+          setConfig(e.data.config);
+          setAddresses(e.data.addresses);
+          break;
+        case "setRequestMultiCurPayment":
+          if (e.data.request.validUntilUtc)
+            validUntilUtcTimer(e.data.request.validUntilUtc);
+          setRequestMultiCurPayment(e.data.request);
+          setConfig(e.data.config);
+          setAddresses(e.data.addresses);
+          break;
+        default:
+          break;
+      }
+    });
+  }, []);
 
   async function init() {
     if (!(await hasTonProvider())) {
@@ -172,8 +203,8 @@ function App(): JSX.Element {
       if (requestMultiCurPayment.description)
         setDescription(requestMultiCurPayment.description);
       if (requestMultiCurPayment.price) {
-        const box = Array.from(requestMultiCurPayment.price.entries()).map(
-          (item) => ({
+        const box = Array.from(requestMultiCurPayment.price.entries())
+          .map((item) => ({
             currency: item[0],
             amount: item[1],
             label: item[0] === "TON" ? "Native" : "TIP-3",
@@ -187,8 +218,26 @@ function App(): JSX.Element {
                 ? tonLogo
                 : tokensInfo?.tokens.find((token) => token.symbol === item[0])
                     ?.logoURI || "",
-          })
-        );
+          }))
+          .map((item) => {
+            if (
+              item.currency.slice(0, 2) === "0:" &&
+              !Number.isNaN(item.currency.slice(2))
+            ) {
+              return {
+                ...item,
+                currency:
+                  tokensInfo?.tokens.find((t) => t.address === item.currency)
+                    ?.symbol || item.currency,
+                logo:
+                  tokensInfo?.tokens.find((t) => t.address === item.currency)
+                    ?.logoURI ||
+                  // eslint-disable-next-line max-len
+                  "https://w7.pngwing.com/pngs/650/102/png-transparent-smiley-emoticon-desktop-kiss-smiley-miscellaneous-computer-icons-smile.png",
+              };
+            }
+            return item;
+          });
         setCurrencyPriceBox(box);
         const CUR = requestMultiCurPayment.baseCur;
         try {
@@ -470,26 +519,6 @@ function App(): JSX.Element {
     }
   };
 
-  const onSucsess = () => {
-    window.parent.postMessage(
-      {
-        command: "success",
-        hash,
-      },
-      "*"
-    );
-  };
-
-  const onFailure = () => {
-    window.parent.postMessage(
-      {
-        command: "failure",
-        hash,
-      },
-      "*"
-    );
-  };
-
   const onGoBack = () => {
     setIsPaymentStart(false);
     setIsTheEnd(false);
@@ -506,6 +535,22 @@ function App(): JSX.Element {
   }, [isConnected]);
 
   if (loading) return <>Loading...</>;
+
+  if (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(
+      navigator.userAgent
+    )
+  ) {
+    return (
+      <Mobile
+        orderId={orderId || 0}
+        storeAddress={config?.storeAddress}
+        storeName={config?.storeName}
+        storeIcon={config?.storeIcon}
+        onClose={onFailure}
+      />
+    );
+  }
 
   if (
     amount !== null &&
