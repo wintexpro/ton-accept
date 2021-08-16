@@ -263,6 +263,7 @@ body {
   background: rgba(255, 255, 255, 0.16);
   text-decoration: none;
 }
+.container .header .wallet .box svg,
 .container .header .wallet .box img {
   width: 24px;
   height: 24px;

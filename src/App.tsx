@@ -123,7 +123,7 @@ function App(): JSX.Element {
     currencyAddress: string;
   } | null>(null);
 
-  const onSucsess = () => {
+  const onSuccess = () => {
     window.parent.postMessage(
       {
         command: "success",
@@ -232,6 +232,7 @@ function App(): JSX.Element {
                 logo:
                   tokensInfo?.tokens.find((t) => t.address === item.currency)
                     ?.logoURI ||
+                  // add default img
                   // eslint-disable-next-line max-len
                   "https://w7.pngwing.com/pngs/650/102/png-transparent-smiley-emoticon-desktop-kiss-smiley-miscellaneous-computer-icons-smile.png",
               };
@@ -330,6 +331,13 @@ function App(): JSX.Element {
                   : tokensInfo?.tokens.find((token) => token.symbol === item)
                       ?.logoURI || "",
             };
+          })
+          .filter((item) => {
+            const condition = item.currency.slice(0, 2) !== "0:";
+            if (!condition)
+              // eslint-disable-next-line no-console
+              console.error(`${item.currency} is not correct currency address`);
+            return condition;
           });
         setCurrencyPriceBox(box);
         setLoading(false);
@@ -459,7 +467,7 @@ function App(): JSX.Element {
                   to: walletAddress2,
                   tokens: String(
                     Math.round(amountInChooseCurrency * 10 ** +decimals)
-                  ), // ?
+                  ),
                   grams: "1000000000",
                   send_gas_to: selectedAddress,
                   notify_receiver: true,
@@ -617,8 +625,8 @@ function App(): JSX.Element {
                 description={description}
                 amount={amount}
                 currency={currency}
-                hash={hash || ""} // todo
-                onClose={onSucsess}
+                hash={hash!}
+                onClose={onSuccess}
               />
             ) : (
               <Failed

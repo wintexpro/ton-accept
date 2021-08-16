@@ -3,9 +3,6 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
 import React from "react";
 import { scene } from "../../configs/links";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import userJpg from "../../pic/user.jpg";
 
 type SceneProps = {
   isSkeleton: boolean;
@@ -28,6 +25,18 @@ const Scene = ({
   onExit,
   children,
 }: SceneProps): JSX.Element => {
+  const logo = [];
+  const a = address.slice(2);
+  for (let j = 0; j < 4; j += 1) {
+    for (let i = 0; i < 4; i += 1) {
+      const x = `${a[0]}${a[j * 4 + i * 16]}${a[j * 4 + i * 16 + 1]}${
+        a[j * 4 + i * 16 + 2]
+      }${a[63]}${a[j * 4 + i * 16 + 3]}`;
+      logo.push(
+        <circle key={x} cx={j * 10 + 3} cy={i * 10 + 3} r="7" fill={`#${x}`} />
+      );
+    }
+  }
   const wallet =
     isConnected && !isSkeleton ? (
       <div className="wallet connected-wallet">
@@ -35,7 +44,20 @@ const Scene = ({
           {amount} {currency}
         </div>
         <a className="box with-tooltip">
-          <img src={userJpg} alt="user" />
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 36 36"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <g clipPath="url(#clip0)">{logo}</g>
+            <defs>
+              <clipPath id="clip0">
+                <rect width="36" height="36" rx="18" fill="white" />
+              </clipPath>
+            </defs>
+          </svg>
           <span>{`${address.slice(0, 6)}...${address.slice(-4)}`}</span>
           <div className="hidden-text centered fix">{address}</div>
         </a>
