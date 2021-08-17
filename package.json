@@ -1,6 +1,6 @@
 {
   "homepage": "https://wintexpro.github.io/ton-accept/",
-  "name": "vite-project",
+  "name": "ton-accept",
   "version": "0.0.0",
   "scripts": {
     "dev": "vite",

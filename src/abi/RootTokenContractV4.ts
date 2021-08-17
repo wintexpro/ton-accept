@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 export const RootTokenContractV4 = `{
     "ABI version": 2,
     "header": ["pubkey", "time", "expire"],

@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 export const TONTokenWalletV4 = `{
     "ABI version": 2,
     "header": ["pubkey", "time", "expire"],

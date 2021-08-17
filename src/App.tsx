@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import ton, { hasTonProvider } from "ton-inpage-provider";
 import { RootTokenContractV4 } from "./abi/RootTokenContractV4";
 import { TONTokenWalletV4 } from "./abi/TONTokenWalletV4";
-import { getTokensInfo } from "./api/tokens-info";
+import { GetTokensInfo, getTokensInfo } from "./api/tokens-info";
 import { getCurrenciesDataInfo } from "./api/ton-swap";
 import Connect from "./components/connect/Connect";
 import Failed from "./components/failed/Failed";
@@ -15,6 +15,10 @@ import Waiting from "./components/waiting/Waiting";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import tonLogo from "./pic/TON.svg";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import defaultCurrencyImg from "./pic/default-currency.svg";
 
 type Config = {
   currencies: string[];
@@ -97,26 +101,7 @@ function App(): JSX.Element {
     CurrencyPriceBox[] | null
   >(null);
 
-  const [tokensInfo, setTokensInfo] = useState<{
-    $schema: string;
-    name: string;
-    version: {
-      major: number;
-      minor: number;
-      patch: number;
-    };
-    keywords: string[];
-    timestamp: string;
-    tokens: {
-      name: string;
-      chainId: number;
-      symbol: string;
-      decimals: number;
-      address: string;
-      logoURI: string;
-      version: number;
-    }[];
-  } | null>(null);
+  const [tokensInfo, setTokensInfo] = useState<GetTokensInfo | null>(null);
 
   const [retryData, setRetryData] = useState<{
     currencyCode: string;
@@ -231,10 +216,7 @@ function App(): JSX.Element {
                     ?.symbol || item.currency,
                 logo:
                   tokensInfo?.tokens.find((t) => t.address === item.currency)
-                    ?.logoURI ||
-                  // add default img
-                  // eslint-disable-next-line max-len
-                  "https://w7.pngwing.com/pngs/650/102/png-transparent-smiley-emoticon-desktop-kiss-smiley-miscellaneous-computer-icons-smile.png",
+                    ?.logoURI || defaultCurrencyImg,
               };
             }
             return item;
@@ -351,7 +333,7 @@ function App(): JSX.Element {
     const info = await getTokensInfo();
     setCurrencies(
       cur.filter((c) => {
-        const find = !!info.tokens.find((item: any) => item.symbol === c);
+        const find = !!info?.tokens.find((item: any) => item.symbol === c);
         const custom = c.slice(0, 2) === "0:" && !Number.isNaN(c.slice(2));
         if (!find && c !== "TON" && !custom)
           // eslint-disable-next-line no-console
@@ -361,18 +343,20 @@ function App(): JSX.Element {
     );
     setTokensInfo(info);
   };
-
+  let set = true;
   useEffect(() => {
-    if (config && addresses && (requestPayment || requestMultiCurPayment)) {
+    if (
+      set &&
+      config &&
+      addresses &&
+      (requestPayment || requestMultiCurPayment)
+    ) {
+      set = false;
       if (config.currencies && config.currencies.length < 1) {
         if (config.currenciesRemote) {
           getCurrenciesRemote(config.currenciesRemote)
             .then((c) => {
-              if (c) {
-                throw Error("getCurrenciesRemote failed");
-              } else {
-                currenciesCheck(c);
-              }
+              currenciesCheck(c);
             })
             // eslint-disable-next-line no-console
             .catch((e) => console.error(e));
@@ -542,7 +526,7 @@ function App(): JSX.Element {
     }
   }, [isConnected]);
 
-  if (loading) return <>Loading...</>;
+  if (loading) return <></>;
 
   if (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(
@@ -572,8 +556,8 @@ function App(): JSX.Element {
       <Scene
         isSkeleton={isSkeleton}
         isConnected={isConnected}
-        amount={+balance / 1000000000} // todo
-        currency="TON" // todo
+        amount={+balance / 1000000000} // TON
+        currency="TON"
         address={selectedAddress || ""}
         onExit={onCancel}
         onConnect={onConnect}
@@ -625,6 +609,7 @@ function App(): JSX.Element {
                 description={description}
                 amount={amount}
                 currency={currency}
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 hash={hash!}
                 onClose={onSuccess}
               />
