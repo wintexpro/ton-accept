@@ -409,7 +409,7 @@ function App(): JSX.Element {
             sender: selectedAddress,
             recipient: addresses[Math.floor(Math.random() * addresses.length)],
             amount: String(Math.round(amountInChooseCurrency * 1000000000)),
-            bounce: true,
+            bounce: false,
           });
 
           setHash(tonTransaction.id.hash);
@@ -478,7 +478,7 @@ function App(): JSX.Element {
               sender: selectedAddress,
               recipient: walletAddress1,
               amount: "100000000",
-              bounce: true,
+              bounce: false,
             });
 
             await sub
