@@ -2,7 +2,7 @@ import React from "react";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import storeDefaultIcon from "../../pic/store.png";
+import storeDefaultIcon from "../../img/store.png";
 
 type InvoiceHeaderProps = {
   lineWidth: number;

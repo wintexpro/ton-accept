@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import ton, { hasTonProvider } from "ton-inpage-provider";
+import ton, { Address, hasTonProvider, Subscriber } from "ton-inpage-provider";
 import { RootTokenContractV4 } from "./abi/RootTokenContractV4";
 import { TONTokenWalletV4 } from "./abi/TONTokenWalletV4";
-import { GetTokensInfo, getTokensInfo } from "./api/tokens-info";
-import { getCurrenciesDataInfo } from "./api/ton-swap";
+import { GetTokensInfo, getTokensInfo } from "./lib/tokens-info/tokens-info";
+import { getCurrenciesDataInfo } from "./lib/ton-swap/ton-swap";
 import Connect from "./components/connect/Connect";
 import Failed from "./components/failed/Failed";
 import Mobile from "./components/mobile/Mobile";
@@ -14,11 +14,11 @@ import Waiting from "./components/waiting/Waiting";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import tonLogo from "./pic/TON.svg";
+import tonLogo from "./img/TON.svg";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import defaultCurrencyImg from "./pic/default-currency.svg";
+import defaultCurrencyImg from "./img/default-currency.svg";
 
 type Config = {
   currencies: string[];
@@ -108,6 +108,8 @@ function App(): JSX.Element {
     currencyAddress: string;
   } | null>(null);
 
+  const [notInstalled, setNotInstalled] = useState(true);
+
   const onSuccess = () => {
     window.parent.postMessage(
       {
@@ -155,10 +157,22 @@ function App(): JSX.Element {
     });
   }, []);
 
-  async function init() {
+  const hasProvider = async () => {
     if (!(await hasTonProvider())) {
-      throw new Error("Extension is not installed");
+      // eslint-disable-next-line no-alert
+      alert("TON Crystal Wallet is not installed");
+      onFailure();
+      throw new Error("TON Crystal Wallet is not installed");
+    } else {
+      setNotInstalled(false);
     }
+  };
+
+  useEffect(() => {
+    hasProvider();
+  }, []);
+
+  async function init() {
     await ton.ensureInitialized();
 
     const { accountInteraction } = await ton.rawApi.requestPermissions({
@@ -400,6 +414,7 @@ function App(): JSX.Element {
 
           setHash(tonTransaction.id.hash);
           setIsSuccess(true);
+          setIsTheEnd(true);
         } else {
           const randomAddress =
             addresses[Math.floor(Math.random() * addresses.length)];
@@ -443,7 +458,9 @@ function App(): JSX.Element {
           const decimals = decimalsOutput?.decimals;
 
           if (walletAddress1 && walletAddress2 && decimals) {
-            const { transaction } = await ton.rawApi.sendMessage({
+            const sub = new Subscriber(ton);
+
+            await ton.rawApi.sendMessage({
               payload: {
                 abi: TONTokenWalletV4,
                 method: "transfer",
@@ -464,13 +481,22 @@ function App(): JSX.Element {
               bounce: true,
             });
 
-            setHash(transaction.id.hash);
-            setIsSuccess(true);
+            await sub
+              .transactions(walletAddress1 as unknown as Address)
+              .makeProducer(
+                async (d) => {
+                  if (!d.transactions[0].outMessages[0].bounced) {
+                    setHash(d.transactions[0].id.hash);
+                    setIsSuccess(true);
+                  }
+                  setIsTheEnd(true);
+                },
+                () => undefined
+              );
           } else {
             throw Error();
           }
         }
-        setIsTheEnd(true);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error(error);
@@ -482,6 +508,16 @@ function App(): JSX.Element {
             currencyAddress,
           });
         }
+      } finally {
+        setBalance(
+          (
+            await ton.getFullContractState({
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              address: selectedAddress,
+            })
+          )?.state?.balance || ""
+        );
       }
     }
   };
@@ -543,6 +579,8 @@ function App(): JSX.Element {
       />
     );
   }
+
+  if (notInstalled) return <></>;
 
   if (
     amount !== null &&
