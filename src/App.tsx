@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from "react";
-import ton, { Address, hasTonProvider, Subscriber } from "ton-inpage-provider";
-import { RootTokenContractV4 } from "./abi/RootTokenContractV4";
-import { TONTokenWalletV4 } from "./abi/TONTokenWalletV4";
-import { GetTokensInfo, getTokensInfo } from "./lib/tokens-info/tokens-info";
-import { getCurrenciesDataInfo } from "./lib/ton-swap/ton-swap";
+import ton, { hasTonProvider } from "ton-inpage-provider";
 import Connect from "./components/connect/Connect";
 import Failed from "./components/failed/Failed";
 import Mobile from "./components/mobile/Mobile";
@@ -11,14 +7,18 @@ import Pay from "./components/pay/Pay";
 import Scene from "./components/scene/Scene";
 import Success from "./components/success/Success";
 import Waiting from "./components/waiting/Waiting";
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import tonLogo from "./img/TON.svg";
-
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import defaultCurrencyImg from "./img/default-currency.svg";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import tonLogo from "./img/TON.svg";
+import { GetTokensInfo, getTokensInfo } from "./lib/tokens-info/tokens-info";
+import {
+  sendTip3,
+  sendTon,
+} from "./lib/ton-inpage-provider/ton-inpage-provider";
+import { getCurrenciesDataInfo } from "./lib/ton-swap/ton-swap";
 
 type Config = {
   currencies: string[];
@@ -57,12 +57,13 @@ export type CurrencyPriceBox = {
 };
 
 function App(): JSX.Element {
-  const [publicKey, setPublicKey] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isTheEnd, setIsTheEnd] = useState(false);
   const [isPaymentStart, setIsPaymentStart] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [successCurrency, setSuccessCurrency] = useState("TON");
+  const [successAmount, setSuccessAmount] = useState(0);
 
   const [config, setConfig] = useState<Config | null>(null);
   const [addresses, setAddresses] = useState<string[] | null>(null);
@@ -182,7 +183,6 @@ function App(): JSX.Element {
       throw new Error("Insufficient permissions");
     } else {
       setSelectedAddress(accountInteraction.address);
-      setPublicKey(accountInteraction.publicKey);
       setBalance(
         (
           await ton.getFullContractState({
@@ -402,100 +402,33 @@ function App(): JSX.Element {
     const amountInChooseCurrency = currencyPriceBox?.find(
       (item) => item.currency === currencyCode
     )?.amount;
-    if (publicKey && addresses && selectedAddress && amountInChooseCurrency) {
+    if (addresses && selectedAddress && amountInChooseCurrency) {
+      const randomAddress =
+        addresses[Math.floor(Math.random() * addresses.length)];
       try {
         if (currencyCode === "TON") {
-          const { transaction: tonTransaction } = await ton.rawApi.sendMessage({
-            sender: selectedAddress,
-            recipient: addresses[Math.floor(Math.random() * addresses.length)],
-            amount: String(Math.round(amountInChooseCurrency * 1000000000)),
-            bounce: false,
+          await sendTon({
+            from: selectedAddress,
+            to: randomAddress,
+            amount: amountInChooseCurrency,
+            onSuccess: (h) => {
+              setHash(h);
+              setIsSuccess(true);
+              setIsTheEnd(true);
+            },
           });
-
-          setHash(tonTransaction.id.hash);
-          setIsSuccess(true);
-          setIsTheEnd(true);
         } else {
-          const randomAddress =
-            addresses[Math.floor(Math.random() * addresses.length)];
-
-          const { output: output1 } = await ton.rawApi.runLocal({
-            address: currencyAddress,
-            functionCall: {
-              abi: RootTokenContractV4,
-              method: "getWalletAddress",
-              params: {
-                _answer_id: 1, // ?
-                wallet_public_key_: "0",
-                owner_address_: selectedAddress,
-              },
+          await sendTip3({
+            from: selectedAddress,
+            to: randomAddress,
+            amount: amountInChooseCurrency,
+            currencyAddress,
+            onSuccess: (h) => {
+              setHash(h);
+              setIsSuccess(true);
             },
+            onEnd: () => setIsTheEnd(true),
           });
-          const walletAddress1 = output1 && String(output1?.value0);
-
-          const { output: output2 } = await ton.rawApi.runLocal({
-            address: currencyAddress,
-            functionCall: {
-              abi: RootTokenContractV4,
-              method: "getWalletAddress",
-              params: {
-                _answer_id: 1, // ?
-                wallet_public_key_: "0",
-                owner_address_: randomAddress,
-              },
-            },
-          });
-          const walletAddress2 = output2 && String(output2?.value0);
-
-          const { output: decimalsOutput } = await ton.rawApi.runLocal({
-            address: currencyAddress,
-            functionCall: {
-              abi: RootTokenContractV4,
-              method: "decimals",
-              params: {},
-            },
-          });
-          const decimals = decimalsOutput?.decimals;
-
-          if (walletAddress1 && walletAddress2 && decimals) {
-            const sub = new Subscriber(ton);
-
-            await ton.rawApi.sendMessage({
-              payload: {
-                abi: TONTokenWalletV4,
-                method: "transfer",
-                params: {
-                  to: walletAddress2,
-                  tokens: String(
-                    Math.round(amountInChooseCurrency * 10 ** +decimals)
-                  ),
-                  grams: "1000000000",
-                  send_gas_to: selectedAddress,
-                  notify_receiver: true,
-                  payload: "",
-                },
-              },
-              sender: selectedAddress,
-              recipient: walletAddress1,
-              amount: "100000000",
-              bounce: false,
-            });
-
-            await sub
-              .transactions(walletAddress1 as unknown as Address)
-              .makeProducer(
-                async (d) => {
-                  if (!d.transactions[0].outMessages[0].bounced) {
-                    setHash(d.transactions[0].id.hash);
-                    setIsSuccess(true);
-                  }
-                  setIsTheEnd(true);
-                },
-                () => undefined
-              );
-          } else {
-            throw Error();
-          }
         }
       } catch (error) {
         // eslint-disable-next-line no-console
@@ -509,6 +442,8 @@ function App(): JSX.Element {
           });
         }
       } finally {
+        setSuccessCurrency(currencyCode);
+        setSuccessAmount(amountInChooseCurrency);
         setBalance(
           (
             await ton.getFullContractState({
@@ -645,14 +580,15 @@ function App(): JSX.Element {
                 orderId={orderId}
                 storeIcon={config?.storeIcon}
                 description={description}
-                amount={amount}
-                currency={currency}
+                amount={successAmount}
+                currency={successCurrency}
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 hash={hash!}
                 onClose={onSuccess}
               />
             ) : (
               <Failed
+                storeIcon={config?.storeIcon}
                 orderId={orderId}
                 onClose={onFailure}
                 onGoBack={onGoBack}
