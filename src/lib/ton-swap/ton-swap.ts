@@ -68,6 +68,12 @@ export const getCurrenciesDataInfo = async (
               price: +item.rightPrice / +item.leftPrice,
               address: item.meta.baseAddress,
             }
+      )
+      .filter(
+        (item) =>
+          item.price !== Infinity &&
+          item.price !== -Infinity &&
+          item.price !== 0
       );
   }
   return null;

@@ -251,25 +251,34 @@ function App(): JSX.Element {
       if (requestPayment.description)
         setDescription(requestPayment.description);
       if (requestPayment.amount) setAmount(requestPayment.amount);
-      if (requestPayment.currency) setCurrency(requestPayment.currency);
+      let cur: string | undefined = requestPayment.currency;
+      if (cur) {
+        cur =
+          cur.slice(0, 2) === "0:"
+            ? tokensInfo?.tokens.find((item) => item.address === cur)?.symbol
+            : cur;
+        if (cur) await setCurrency(cur);
+        else {
+          throw Error("Invalid currency in requestPayment");
+        }
+      }
 
       let currenciesDataInfo: {
         code: string;
         price: number;
         address: string;
       }[];
-      if (requestPayment.currency && requestPayment.currency !== "USDT") {
-        const curToWtonArr = await getCurrenciesDataInfo(
-          requestPayment.currency,
-          tokensInfo?.tokens.find(
-            (item) => item.symbol === requestPayment.currency
-          )?.address || "",
-          ["WTON"]
-        );
 
-        const curToWton = curToWtonArr ? curToWtonArr[0].price : null;
+      const curToWtonArr = await getCurrenciesDataInfo(
+        cur,
+        tokensInfo?.tokens.find((item) => item.symbol === cur)?.address || "",
+        ["WTON"]
+      );
 
-        if (curToWton && curToWtonArr?.[0]) {
+      const curToWton = curToWtonArr ? curToWtonArr[0].price : null;
+
+      if (curToWton && curToWtonArr?.[0]) {
+        if (cur && cur !== "USDT") {
           currenciesDataInfo =
             (
               await getCurrenciesDataInfo(
@@ -284,38 +293,63 @@ function App(): JSX.Element {
                 price: item.price * curToWton,
               }))
               .concat(curToWtonArr[0]) || [];
+        } else {
+          const info1 =
+            (await getCurrenciesDataInfo(
+              cur || "USDT",
+              tokensInfo?.tokens.find((item) => item.symbol === cur)?.address ||
+                "",
+              currencies.map((item) => (item === "TON" ? "WTON" : item))
+            )) || [];
+          const info2 =
+            (
+              await getCurrenciesDataInfo(
+                "WTON",
+                tokensInfo?.tokens.find((item) => item.symbol === "WTON")
+                  ?.address || "",
+                currencies.filter((item) => !info1.find((c) => c.code === item))
+              )
+            )
+              ?.map((item) => ({
+                ...item,
+                price: item.price * curToWton,
+              }))
+              .concat(curToWtonArr[0]) || [];
+          currenciesDataInfo = info1.concat(info2);
         }
-      } else {
-        currenciesDataInfo =
-          (await getCurrenciesDataInfo(
-            requestPayment.currency || "USDT",
-            tokensInfo?.tokens.find(
-              (item) => item.symbol === requestPayment.currency
-            )?.address || "",
-            currencies.map((item) => (item === "TON" ? "WTON" : item))
-          )) || [];
       }
-
       if (currencies) {
         const box = currencies
           .map((item) =>
+            // eslint-disable-next-line no-nested-ternary
             item.slice(0, 2) === "0:" && !Number.isNaN(item.slice(2))
-              ? currenciesDataInfo?.find((cur) => cur.address === item)?.code ||
-                item
+              ? currenciesDataInfo?.find((c) => c.address === item)?.code ||
+                (item ===
+                tokensInfo?.tokens.find((t) => t.symbol === cur)?.address
+                  ? cur
+                  : item)
               : item
           )
           .map((item) => {
-            const relativePrice = currenciesDataInfo?.find((cur) =>
-              item === "TON" ? cur.code === "WTON" : cur.code === item
+            const relativePrice = currenciesDataInfo?.find((c) =>
+              item === "TON" ? c.code === "WTON" : c.code === item
             )?.price;
+            const decimals =
+              item === "TON"
+                ? 9
+                : tokensInfo?.tokens.find((ti) => ti.symbol === item)
+                    ?.decimals || 1;
             return {
               currency: item,
               amount:
                 // eslint-disable-next-line no-nested-ternary
-                item === requestPayment.currency
+                item === cur
                   ? requestPayment.amount
                   : relativePrice
-                  ? requestPayment.amount * relativePrice
+                  ? Math.round(
+                      requestPayment.amount * relativePrice * 10 ** decimals
+                    ) /
+                    10 ** decimals
                   : 0,
               label: item === "TON" ? "Native" : "TIP-3",
               currencyAddress:
@@ -325,17 +359,23 @@ function App(): JSX.Element {
                 item === "TON"
                   ? tonLogo
                   : tokensInfo?.tokens.find((token) => token.symbol === item)
-                      ?.logoURI || "",
+                      ?.logoURI || defaultCurrencyImg,
             };
           })
           .filter((item) => {
-            const condition = item.currency.slice(0, 2) !== "0:";
-            if (!condition)
+            const condition = item.currency?.slice(0, 2) === "0:";
+            if (condition)
               // eslint-disable-next-line no-console
               console.error(`${item.currency} is not correct currency address`);
-            return condition;
-          });
-        setCurrencyPriceBox(box);
+            return !condition;
+          })
+          .filter(
+            (item) =>
+              item.amount !== Infinity &&
+              item.amount !== -Infinity &&
+              item.amount !== 0
+          );
+        setCurrencyPriceBox(box as CurrencyPriceBox[]);
         setLoading(false);
       }
     } else {
@@ -390,6 +430,24 @@ function App(): JSX.Element {
       }
     }
   }, [config, addresses, requestPayment, requestMultiCurPayment]);
+
+  useEffect(() => {
+    if (!requestPayment) return;
+    const token = tokensInfo?.tokens.find(
+      (item) => item.symbol === requestPayment?.currency
+    );
+    if (!token) return;
+    if (
+      Math.round(requestPayment.amount * 10 ** token.decimals) /
+        token.decimals ===
+      0
+    ) {
+      setNotInstalled(true);
+      // eslint-disable-next-line no-console
+      console.error("the price in the base currency is too small");
+      onFailure();
+    }
+  }, [tokensInfo]);
 
   useEffect(() => {
     if (tokensInfo) {
